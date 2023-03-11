@@ -1,0 +1,28 @@
+build:
+  image: docker:stable
+  variables:
+    GIT_CLONE_URL: https://github.com/vyos/vyos-build
+    TZ: America/Phoenix
+    VYOS_IMAGE: vyos/vyos-build:equuleus
+  services:
+    - docker:dind
+  script:
+    - |
+      set -eux
+      ls -alh
+      docker run --rm --privileged \
+      -e "GIT_CLONE_URL=$GIT_CLONE_URL" \
+      -e "CI_COMMIT_TAG=$CI_COMMIT_TAG" \
+      -e "TZ=$TZ" \
+      -v $(pwd):/vyos \
+      -w /vyos \
+      $VYOS_IMAGE \
+      sh -c '/vyos/build.sh'
+  release:
+    tag_name: '$CI_COMMIT_TAG'
+    description: '$CI_COMMIT_TAG'
+  artifacts:
+    paths:
+      - artifacts
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^1\.3\.\d+$/'
