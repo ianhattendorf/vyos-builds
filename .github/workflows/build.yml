@@ -1,0 +1,56 @@
+name: VyOS v1.3 LTS
+
+on:
+  workflow_dispatch:
+
+env:
+  BUILD_ARCH: amd64
+  BUILD_BY: ian@ianhattendorf.com
+  BUILD_TYPE: release
+  GIT_CLONE_URL: https://github.com/vyos/vyos-build
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    container:
+      image: vyos/vyos-build:equuleus
+      options: --workdir /vyos --privileged
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Clone vyos-build
+        run: |
+          set -eux
+          mkdir artifacts
+          git clone -b equuleus --single-branch $GIT_CLONE_URL vyos-build
+          cd vyos-build
+          export VYOS_VERSION="1.3.$(date "+%Y%m%d")-$(git rev-parse --short HEAD)"
+          echo "Building VyOS v$VYOS_VERSION..."
+          echo "VYOS_VERSION=$VYOS_VERSION" >> $GITHUB_ENV
+          ./configure --architecture $BUILD_ARCH --build-by $BUILD_BY --build-type $BUILD_TYPE --version $VYOS_VERSION
+
+      - name: Build ISO
+        working-directory: ./vyos-build
+        run: |
+          set -eux
+          make iso
+          cp ./build/vyos-$VYOS_VERSION-$BUILD_ARCH.iso ../artifacts
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: vyos-${{ env.VYOS_VERSION }}-${{ env.BUILD_ARCH }}.iso
+          path: artifacts/vyos-${{ env.VYOS_VERSION }}-${{ env.BUILD_ARCH }}.iso
+
+      - uses: ncipollo/release-action@v1
+        with:
+          artifacts: artifacts/vyos-${{ env.VYOS_VERSION }}-${{ env.BUILD_ARCH }}.iso
+          body: VyOS v${{ env.VYOS_VERSION }} LTS
+          name: VyOS v${{ env.VYOS_VERSION }} LTS
+          commit: ${{ github.sha }}
+          tag: ${{ env.VYOS_VERSION }}
